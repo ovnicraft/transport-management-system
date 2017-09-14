@@ -18,7 +18,7 @@ class TmsExpense(models.Model):
 
     name = fields.Char(readonly=True)
     operating_unit_id = fields.Many2one(
-        'operating.unit', required=True)
+        'operating.unit', string="Operating Unit", required=True)
     employee_id = fields.Many2one(
         'hr.employee', 'Driver', required=True)
     travel_ids = fields.Many2many(
@@ -36,7 +36,7 @@ class TmsExpense(models.Model):
         ('cancel', 'Cancelled')], 'Expense State', readonly=True,
         help="Gives the state of the Travel Expense. ",
         default='draft')
-    date = fields.Date(required=True, default=fields.Date.today)
+    date = fields.Date(required=True, default=fields.Date.context_today)
     expense_line_ids = fields.One2many(
         'tms.expense.line', 'expense_id', 'Expense Lines')
     amount_real_expense = fields.Float(
@@ -82,16 +82,16 @@ class TmsExpense(models.Model):
         compute='_compute_amount_salary_discount',
         string='Salary Discounts',
         store=True)
+    amount_loan = fields.Float(
+        compute='_compute_amount_loan',
+        string='Loans',
+        store=True)
     amount_advance = fields.Float(
         compute='_compute_amount_advance',
         string='Advances',
         store=True)
     amount_balance = fields.Float(
         compute='_compute_amount_balance',
-        string='Balance',
-        store=True)
-    amount_balance2 = fields.Float(
-        compute='_compute_amount_balance2',
         string='Balance',
         store=True)
     amount_tax_total = fields.Float(
@@ -233,6 +233,7 @@ class TmsExpense(models.Model):
                 strp_end_date = datetime.strptime(
                     rec.end_date, "%Y-%m-%d %H:%M:%S")
                 difference = strp_end_date - strp_start_date
+                days = int(difference.days) + 1
                 hours = int(difference.seconds / 3600)
                 mins = int((difference.seconds - (hours * 3600))/60)
                 seconds = difference.seconds - ((hours * 3600) + (mins * 60))
@@ -243,7 +244,7 @@ class TmsExpense(models.Model):
                 if seconds < 10:
                     seconds = '0' + str(seconds)
                 total_string = (
-                    str(difference.days) + _('Day(s), ') +
+                    str(days) + _('Day(s), ') +
                     str(hours) + ':' +
                     str(mins) + ':' +
                     str(seconds))
@@ -320,6 +321,14 @@ class TmsExpense(models.Model):
                     rec.amount_salary_discount += line.price_total
 
     @api.depends('expense_line_ids')
+    def _compute_amount_loan(self):
+        for rec in self:
+            rec.amount_loan = 0
+            for line in rec.expense_line_ids:
+                if line.line_type == 'loan':
+                    rec.amount_loan += line.price_total
+
+    @api.depends('expense_line_ids')
     def _compute_amount_made_up_expense(self):
         for rec in self:
             rec.amount_made_up_expense = 0
@@ -343,6 +352,7 @@ class TmsExpense(models.Model):
                 rec.amount_salary_discount +
                 rec.amount_real_expense +
                 rec.amount_salary_retention +
+                rec.amount_loan +
                 rec.amount_refund +
                 rec.amount_fuel_cash +
                 rec.amount_other_income)
@@ -380,11 +390,6 @@ class TmsExpense(models.Model):
                 for advance in travel.advance_ids:
                     if advance.payment_move_id:
                         rec.amount_advance += advance.amount
-
-    @api.depends('travel_ids')
-    def _compute_amount_balance2(self):
-        for rec in self:
-            rec.amount_balance2 = 1.0
 
     @api.depends('travel_ids', 'expense_line_ids')
     def _compute_amount_tax_total(self):
@@ -487,43 +492,29 @@ class TmsExpense(models.Model):
     @api.multi
     def action_approved(self):
         for rec in self:
-            message = _('<b>Expense Approved.</b></br><ul>'
-                        '<li><b>Approved by: </b>%s</li>'
-                        '<li><b>Approved at: </b>%s</li>'
-                        '</ul>') % (
-                            self.env.user.name,
-                            fields.Datetime.now())
-            rec.message_post(body=message)
+            rec.message_post(body=_('<b>Expense Approved.</b>'))
         self.state = 'approved'
 
     @api.multi
     def action_draft(self):
         for rec in self:
-            message = _('<b>Expense Drafted.</b></br><ul>'
-                        '<li><b>Drafted by: </b>%s</li>'
-                        '<li><b>Drafted at: </b>%s</li>'
-                        '</ul>') % (
-                            self.env.user.name,
-                            fields.Datetime.now())
-            rec.message_post(body=message)
+            rec.message_post(body=_('<b>Expense Drafted.</b>'))
         self.state = 'draft'
 
     @api.model
     def prepare_move_line(self, name, ref, account_id,
                           debit, credit, journal_id,
                           partner_id, operating_unit_id):
-        return (
-            0, 0,
-            {
-                'name': name,
-                'ref': ref,
-                'account_id': account_id,
-                'debit': debit,
-                'credit': credit,
-                'journal_id': journal_id,
-                'partner_id': partner_id,
-                'operating_unit_id': operating_unit_id,
-            })
+        return (0, 0, {
+            'name': name,
+            'ref': ref,
+            'account_id': account_id,
+            'debit': debit,
+            'credit': credit,
+            'journal_id': journal_id,
+            'partner_id': partner_id,
+            'operating_unit_id': operating_unit_id,
+        })
 
     @api.model
     def create_fuel_vouchers(self, line):
@@ -612,7 +603,6 @@ class TmsExpense(models.Model):
             # We check if the expense line is an invoice to create it
             # and make the move line based in the total with taxes
             inv_id = False
-
             if line.is_invoice:
                 inv_id = rec.create_supplier_invoice(line)
                 inv_id.signal_workflow('invoice_open')
@@ -634,10 +624,9 @@ class TmsExpense(models.Model):
             # line based in the subtotal
             elif (rec.employee_id.outsourcing and
                   line.product_id.tms_product_category in
-                  ['salary', 'other_income']):
+                  ['salary', 'other_income', 'salary_discount']):
                 continue
             else:
-
                 move_line = rec.prepare_move_line(
                     rec.name + ' ' + line.name,
                     rec.name,
@@ -683,7 +672,8 @@ class TmsExpense(models.Model):
             # made up expenses
             if line.line_type == 'fuel' and not line.control:
                 rec.create_fuel_vouchers(line)
-            if line.line_type not in ('made_up_expense', 'fuel'):
+            if line.line_type not in (
+                    'made_up_expense', 'fuel', 'tollstations'):
                 product_account = (
                     result['negative_account']
                     if (line.product_id.
@@ -706,12 +696,21 @@ class TmsExpense(models.Model):
     @api.multi
     def check_balance_value(self, result):
         for rec in self:
-            if rec.amount_balance < 0:
+            balance = rec.amount_balance
+            if (rec.employee_id.outsourcing and rec.expense_line_ids.filtered(
+                    lambda x: x.line_type in ['other_income', 'salary'])):
+                balance = (
+                    balance - rec.amount_other_income -
+                    rec.amount_salary) - sum(
+                    rec.expense_line_ids.filtered(
+                        lambda y: y.line_type == 'salary_discount').mapped(
+                        'price_total'))
+            if balance < 0:
                 move_line = rec.prepare_move_line(
                     _('Negative Balance'),
                     rec.name,
                     result['negative_account'],
-                    rec.amount_balance * -1.0,
+                    balance * -1.0,
                     0.0,
                     result['journal_id'],
                     rec.employee_id.address_home_id.id,
@@ -722,7 +721,7 @@ class TmsExpense(models.Model):
                     rec.name,
                     result['driver_account_payable'],
                     0.0,
-                    rec.amount_balance,
+                    balance,
                     result['journal_id'],
                     rec.employee_id.address_home_id.id,
                     rec.operating_unit_id.id)
@@ -764,13 +763,7 @@ class TmsExpense(models.Model):
             # the move line with the correct values
             rec.check_balance_value(result)
             rec.reconcile_account_move(result)
-            message = _('<b>Expense Confirmed.</b></br><ul>'
-                        '<li><b>Confirmed by: </b>%s</li>'
-                        '<li><b>Confirmed at: </b>%s</li>'
-                        '</ul>') % (
-                            self.env.user.name,
-                            fields.Datetime.now())
-            rec.message_post(body=message)
+            rec.message_post(body=_('<b>Expense Confirmed.</b>'))
 
     @api.multi
     def action_cancel(self):
@@ -903,6 +896,7 @@ class TmsExpense(models.Model):
                     'state': 'closed',
                     'expense_id': rec.id
                 })
+        return fuel_expense
 
     @api.multi
     def create_salary_line(self, travel):
@@ -928,68 +922,70 @@ class TmsExpense(models.Model):
                 })
 
     @api.multi
+    def calculate_discounts(self, methods, loan):
+        if loan.discount_type == 'fixed':
+            total = loan.fixed_discount
+        elif loan.discount_type == 'percent':
+            total = loan.amount * (
+                loan.percent_discount / 100)
+        for key, value in methods.items():
+            if loan.discount_method == key:
+                if loan.expense_ids:
+                    dates = []
+                    for loan_date in loan.expense_ids:
+                        dates.append(loan_date.date)
+                    dates.sort(reverse=True)
+                    end_date = datetime.strptime(
+                        dates[0], "%Y-%m-%d")
+                else:
+                    end_date = datetime.strptime(
+                        loan.date_confirmed, "%Y-%m-%d")
+                start_date = datetime.strptime(
+                    self.date, "%Y-%m-%d")
+                total_date = start_date - end_date
+                total_payment = total_date / value
+                if int(total_payment.days) >= 1:
+                    total_discount = (
+                        total_payment.days * total)
+            elif loan.discount_method == 'each':
+                total_discount = total
+        return total_discount
+
+    @api.multi
     def get_expense_loan(self):
         loans = self.env['tms.expense.loan'].search([
-            ('employee_id', '=', self.employee_id.id)])
+            ('employee_id', '=', self.employee_id.id),
+            ('balance', '>', 0.0)])
         methods = {
             'monthly': 30,
             'fortnightly': 15,
             'weekly': 7,
         }
-        loans_unpaid = []
         for loan in loans:
             total_discount = 0.0
             payment = loan.payment_move_id.id
             ac_loan = loan.active_loan
-            if not loan.lock and loan.state == 'confirmed' and not payment:
-                loans_unpaid.append(loan.name)
             if not loan.lock and loan.state == 'confirmed' and payment:
                 if ac_loan:
                     loan.write({
                         'expense_id': self.id
                         })
-                    if loan.balance > 0.0:
-                        if loan.discount_type == 'fixed':
-                            total = loan.fixed_discount
-                        elif loan.discount_type == 'percent':
-                            total = loan.amount * (
-                                loan.percent_discount / 100)
-                        for key, value in methods.items():
-                            if loan.discount_method == key:
-                                if loan.expense_ids:
-                                    dates = []
-                                    for loan_date in loan.expense_ids:
-                                        dates.append(loan_date.date)
-                                    dates.sort(reverse=True)
-                                    end_date = datetime.strptime(
-                                        dates[0], "%Y-%m-%d")
-                                else:
-                                    end_date = datetime.strptime(
-                                        loan.date_confirmed, "%Y-%m-%d")
-                                start_date = datetime.strptime(
-                                    self.date, "%Y-%m-%d")
-                                total_date = start_date - end_date
-                                total_payment = total_date / value
-                                if int(total_payment.days) >= 1:
-                                    total_discount = (
-                                        total_payment.days * total)
-                            elif loan.discount_method == 'each':
-                                total_discount = total
-                        total_final = loan.balance - total_discount
-                        if total_final <= 0.0:
-                            total_discount = loan.balance
-                            loan.write({'balance': 0.0, 'state': 'closed'})
-                        expense_line = self.expense_line_ids.create({
-                            'name': _("Loan: ") + str(loan.name),
-                            'expense_id': self.id,
-                            'line_type': "salary_discount",
-                            'product_id': loan.product_id.id,
-                            'product_qty': 1.0,
-                            'unit_price': total_discount,
-                            'date': self.date,
-                            'control': True
-                        })
-                        loan.expense_ids += expense_line
+                    total_discount = self.calculate_discounts(methods, loan)
+                    total_final = loan.balance - total_discount
+                    if total_final <= 0.0:
+                        total_discount = loan.balance
+                        loan.write({'balance': 0.0, 'state': 'closed'})
+                    expense_line = self.expense_line_ids.create({
+                        'name': _("Loan: ") + str(loan.name),
+                        'expense_id': self.id,
+                        'line_type': "loan",
+                        'product_id': loan.product_id.id,
+                        'product_qty': 1.0,
+                        'unit_price': total_discount,
+                        'date': self.date,
+                        'control': True
+                    })
+                    loan.expense_ids += expense_line
             elif loan.lock and loan.state == 'confirmed' and ac_loan:
                 if loan.balance > 0.0:
                     loan.write({
@@ -998,7 +994,7 @@ class TmsExpense(models.Model):
                     expense_line = self.expense_line_ids.create({
                         'name': _("Loan: ") + str(loan.name),
                         'expense_id': self.id,
-                        'line_type': "salary_discount",
+                        'line_type': "loan",
                         'product_id': loan.product_id.id,
                         'product_qty': 1.0,
                         'unit_price': loan.amount_discount,

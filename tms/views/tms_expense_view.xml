@@ -12,7 +12,7 @@
                     <field name="name"/>
                     <field name="date"/>
                     <field name="employee_id"/>
-                    <field name="vehicle_id"/>
+                    <field name="unit_id"/>
                     <field name="amount_advance" sum="Advances"/>
                     <field name="amount_net_salary" sum="Net Salary"/>
                     <field name="amount_subtotal_real" sum="SubTotal (Real)"/>
@@ -61,6 +61,7 @@
                                             <field name="amount_refund"/>
                                             <field name="amount_salary_discount"/>
                                             <field name="amount_salary_retention"/>
+                                            <field name="amount_loan"/>
                                             <field name="amount_real_expense"/>
                                             <field name="amount_fuel_cash"/>
                                             <field name="amount_subtotal_real"/>

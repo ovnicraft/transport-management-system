@@ -24,7 +24,9 @@ class ProductTemplate(models.Model):
         ('other_income', 'Other Income'),
         ('refund', 'Refund'),
         ('negative_balance', 'Negative Balance'),
-        ('fuel_cash', 'Fuel in Cash')],
+        ('fuel_cash', 'Fuel in Cash'),
+        ('tollstations', 'Tollstations (Expenses)'),
+        ('loan', 'Loan')],
         string='TMS Product Category')
     apply_for_salary = fields.Boolean()
 

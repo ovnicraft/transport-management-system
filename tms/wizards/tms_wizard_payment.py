@@ -15,7 +15,7 @@ class TmsWizardPayment(models.TransientModel):
         'account.journal', string='Bank Account',
         domain="[('type', '=', 'bank')]")
     amount_total = fields.Float(compute='_compute_amount_total')
-    date = fields.Date(required=True, default=fields.Date.today())
+    date = fields.Date(required=True, default=fields.Date.context_today)
     notes = fields.Text()
 
     @api.depends('journal_id')
@@ -82,22 +82,25 @@ class TmsWizardPayment(models.TransientModel):
                     'tms.expense.loan': obj.amount
                     if hasattr(obj, 'amount') and
                     active_model == 'tms.expense.loan'else 0.0}
-                # Createng counterpart move lines method explained above
+                # Creating counterpart move lines method explained above
                 counterpart_move_line, amount_bank = self.create_counterpart(
                     model_amount, currency, obj,
                     amount_currency, amount_bank, counterpart_move_line)
                 self._create_payment(counterpart_move_line, rec)
                 move_lines.append((0, 0, counterpart_move_line))
-            if amount_currency > 0.0:
-                bank_line['amount_currency'] = amount_currency
-                bank_line['currency_id'] = currency.id
+                if amount_currency > 0.0:
+                    bank_line['amount_currency'] = amount_currency
+                    bank_line['currency_id'] = currency.id
+                    # TODO Separate the bank line for each Operating Unit
+            operating_unit_id = self.env['operating.unit'].search(
+                [], limit=1)
             bank_line = {
                 'name': name,
                 'account_id': bank_account_id,
                 'debit': 0.0,
                 'credit': amount_bank,
                 'journal_id': rec.journal_id.id,
-                'operating_unit_id': obj.operating_unit_id.id,
+                'operating_unit_id': operating_unit_id.id,
             }
             move_lines.append((0, 0, bank_line))
             move = {
@@ -122,8 +125,8 @@ class TmsWizardPayment(models.TransientModel):
             'communication': counterpart_move_line['name'],
             'payment_type': 'outbound',
             'payment_method_id': 1,
+            'state': 'posted',
         })
-        payment_id.post()
         counterpart_move_line['payment_id'] = payment_id.id
 
     @api.multi
@@ -159,11 +162,16 @@ class TmsWizardPayment(models.TransientModel):
         move_id.post()
         for move_line in move_id.line_ids:
             move_ids = []
+            active_id = self._context['active_id']
+            active_model = self._context['active_model']
+            active_obj = self.env[active_model].browse(active_id)
+            journal_id = active_obj.move_id.journal_id.id
             if move_line.account_id.internal_type == 'payable':
                 line = self.env['account.move.line'].search([
                     ('name', '=', move_line.name),
                     ('account_id.internal_type', '=', 'payable'),
-                    ('move_id', '!=', move_id.id)])
+                    ('move_id', '!=', move_id.id),
+                    ('journal_id', '=', journal_id)])
                 if len(line) > 1:
                     raise ValidationError(_(
                         'The driver advance account is defined as '
