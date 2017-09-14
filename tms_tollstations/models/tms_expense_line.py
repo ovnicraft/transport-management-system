@@ -2,6 +2,8 @@
 # Copyright 2016, Jarsa Sistemas, S.A. de C.V.
 # License AGPL-3.0 or later (http://www.gnu.org/licenses/agpl.html).
 
+from datetime import datetime
+
 from odoo import api, fields, models
 
 
@@ -59,3 +61,13 @@ class TmsExpenseLine(models.Model):
                 'state': 'open',
                 'expense_line_id': False})
         return super(TmsExpenseLine, self).unlink()
+
+    @api.multi
+    def get_ordered_lines(self):
+        for rec in self:
+            sorted_array = sorted(
+                rec.tollstation_ids,
+                key=lambda x: datetime.strptime(
+                    x['date'], '%Y-%m-%d %H:%M:%S'),
+                reverse=True)
+            return sorted_array

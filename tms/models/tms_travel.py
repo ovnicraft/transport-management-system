@@ -22,10 +22,10 @@ class TmsTravel(models.Model):
         'tms.factor', 'travel_id', string='Travel Driver Payment Factors',
         domain=[('category', '=', 'driver')])
     name = fields.Char('Travel Number')
-    state = fields.Selection(
-        [('draft', 'Pending'), ('progress', 'In Progress'), ('done', 'Done'),
-         ('cancel', 'Cancelled'), ('closed', 'Closed')],
-        'State', readonly=True, default='draft')
+    state = fields.Selection([
+        ('draft', 'Pending'), ('progress', 'In Progress'), ('done', 'Done'),
+        ('cancel', 'Cancelled'), ('closed', 'Closed')],
+        readonly=True, default='draft')
     route_id = fields.Many2one(
         'tms.route', 'Route', required=True,
         states={'cancel': [('readonly', True)],
@@ -41,7 +41,6 @@ class TmsTravel(models.Model):
         related="route_id.distance",
         string='Route Distance (mi./km)')
     fuel_efficiency_expected = fields.Float(
-        string='Fuel Efficiency Expected',
         compute="_compute_fuel_efficiency_expected")
     kit_id = fields.Many2one(
         'tms.unit.kit', 'Kit')
@@ -83,11 +82,9 @@ class TmsTravel(models.Model):
         'Distance Empty (mi./km)')
     odometer = fields.Float(
         'Unit Odometer (mi./km)', readonly=True)
-    fuel_efficiency_travel = fields.Float(
-        'Fuel Efficiency Travel')
+    fuel_efficiency_travel = fields.Float()
     fuel_efficiency_extraction = fields.Float(
-        compute='_compute_fuel_efficiency_extraction',
-        string='Fuel Efficiency Extraction')
+        compute='_compute_fuel_efficiency_extraction')
     departure_id = fields.Many2one(
         'tms.place',
         string='Departure',
@@ -261,6 +258,11 @@ class TmsTravel(models.Model):
     @api.model
     def create(self, values):
         travel = super(TmsTravel, self).create(values)
+        if not travel.operating_unit_id.travel_sequence_id:
+            raise ValidationError(_(
+                'You need to define the sequence for travels in base %s' %
+                travel.operating_unit_id.name
+            ))
         sequence = travel.operating_unit_id.travel_sequence_id
         travel.name = sequence.next_by_id()
         return travel
@@ -325,7 +327,6 @@ class TmsTravel(models.Model):
                       " about to expire in next %s day(s)") % (
                         rec.employee_id.name,
                         rec.employee_id.license_expiration, val))
-        return True
 
     @api.multi
     def validate_vehicle_insurance(self):
@@ -346,3 +347,9 @@ class TmsTravel(models.Model):
                         "next %s day(s)") % (
                         rec.unit_id.name, rec.unit_id.insurance_expiration,
                         val))
+
+    @api.multi
+    def copy(self, default=None):
+        default = dict(default or {})
+        default['waybill_ids'] = False
+        return super(TmsTravel, self).copy(default)

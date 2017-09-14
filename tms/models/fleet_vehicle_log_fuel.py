@@ -5,10 +5,11 @@
 
 from __future__ import division
 
+import logging
+
 from odoo import _, api, fields, models
 from odoo.exceptions import ValidationError
 
-import logging
 _logger = logging.getLogger(__name__)
 try:
     from num2words import num2words
@@ -22,12 +23,8 @@ class FleetVehicleLogFuel(models.Model):
     _order = "date desc,vehicle_id desc"
 
     name = fields.Char()
-    travel_id = fields.Many2one(
-        'tms.travel',
-        string='Travel',)
-    expense_id = fields.Many2one(
-        'tms.expense',
-        string='Expense',)
+    travel_id = fields.Many2one('tms.travel', string='Travel')
+    expense_id = fields.Many2one('tms.expense', string='Expense')
     employee_id = fields.Many2one(
         'hr.employee',
         string='Driver',
@@ -35,73 +32,44 @@ class FleetVehicleLogFuel(models.Model):
         compute='_compute_employee_id',
         store=True,)
     odometer = fields.Float(related='vehicle_id.odometer',)
-    product_uom_id = fields.Many2one(
-        'product.uom',
-        string='UoM ')
-    product_qty = fields.Float(
-        string='Liters',
-        required=True,
-        default=1.0,)
-    tax_amount = fields.Float(
-        string='Taxes',
-        required=True,)
-    price_total = fields.Float(
-        string='Total',
-        required=True,)
+    product_uom_id = fields.Many2one('product.uom', string='UoM')
+    product_qty = fields.Float(string='Liters', default=1.0,)
+    tax_amount = fields.Float(string='Taxes',)
+    price_total = fields.Float(string='Total')
     special_tax_amount = fields.Float(
-        compute="_compute_special_tax_amount",
-        string='IEPS',)
+        compute="_compute_special_tax_amount", string='IEPS')
     price_unit = fields.Float(
-        compute='_compute_price_unit',
-        string='Unit Price',)
+        compute='_compute_price_unit', string='Unit Price')
     price_subtotal = fields.Float(
-        string="Subtotal",
-        compute='_compute_price_subtotal',)
+        string="Subtotal", compute='_compute_price_subtotal')
     invoice_id = fields.Many2one(
-        'account.invoice',
-        'Invoice',
-        readonly=True,
-        domain=[('state', '!=', 'cancel')],)
+        'account.invoice', string='Invoice', readonly=True)
     invoice_paid = fields.Boolean(
-        string='Invoice Paid',
         compute='_compute_invoiced_paid')
     operating_unit_id = fields.Many2one(
-        'operating.unit',
-        string='Operating Unit',)
-    currency_id = fields.Many2one(
-        'res.currency', string='Currency',
-        required=True,
-        default=lambda self: self.env.user.company_id.currency_id,)
+        'operating.unit', string='Operating Unit')
     notes = fields.Char()
-    state = fields.Selection(
-        [('draft', 'Draft'),
-         ('approved', 'Approved'),
-         ('confirmed', 'Confirmed'),
-         ('closed', 'Closed'),
-         ('cancel', 'Cancelled')],
-        string='State',
+    state = fields.Selection([
+        ('draft', 'Draft'),
+        ('approved', 'Approved'),
+        ('confirmed', 'Confirmed'),
+        ('closed', 'Closed'),
+        ('cancel', 'Cancelled')],
         readonly=True,
-        default='draft',)
+        default='draft')
     no_travel = fields.Boolean(
-        string='No Travel',
         help="Check this if you want to create Fuel Voucher "
-        "with no Travel.",)
-    vendor_id = fields.Many2one(
-        'res.partner',
-        required=True)
+        "with no Travel.")
+    vendor_id = fields.Many2one('res.partner')
     product_id = fields.Many2one(
         'product.product',
         string='Product',
-        required=True,
         domain=[('tms_product_category', '=', 'fuel')])
     currency_id = fields.Many2one(
-        'res.currency', 'Currency', required=True,
+        'res.currency', string='Currency',
         default=lambda self: self.env.user.company_id.currency_id)
-    expense_control = fields.Boolean(
-        readonly=True,
-    )
-    ticket_number = fields.Char(
-        string='Ticket Number',)
+    expense_control = fields.Boolean(readonly=True)
+    ticket_number = fields.Char()
 
     @api.multi
     @api.depends('vehicle_id')
@@ -137,11 +105,7 @@ class FleetVehicleLogFuel(models.Model):
     @api.multi
     def action_approved(self):
         for rec in self:
-            message = _('<b>Fuel Voucher Approved.</b></br><ul>'
-                        '<li><b>Approved by: </b>%s</li>'
-                        '<li><b>Approved at: </b>%s</li>'
-                        '</ul>') % (self.env.user.name, fields.Date.today())
-            rec.message_post(body=message)
+            rec.message_post(body=_('<b>Fuel Voucher Approved.</b>'))
             rec.state = 'approved'
 
     @api.multi
@@ -173,12 +137,7 @@ class FleetVehicleLogFuel(models.Model):
     @api.multi
     def set_2_draft(self):
         for rec in self:
-            message = _(
-                '<b>Fuel Voucher Draft.</b></br><ul>'
-                '<li><b>Drafted by: </b>%s</li>'
-                '<li><b>Drafted at: </b>%s</li>'
-                '</ul>') % (self.env.user.name, fields.Date.today())
-            rec.message_post(body=message)
+            rec.message_post(body=_('<b>Fuel Voucher Draft.</b>'))
             rec.state = 'draft'
 
     @api.multi
@@ -190,12 +149,7 @@ class FleetVehicleLogFuel(models.Model):
                 raise ValidationError(
                     _('Liters, Taxes and Total'
                       ' must be greater than zero.'))
-            message = _(
-                '<b>Fuel Voucher Confirmed.</b></br><ul>'
-                '<li><b>Confirmed by: </b>%s</li>'
-                '<li><b>Confirmed at: </b>%s</li>'
-                '</ul>') % (self.env.user.name, fields.Date.today())
-            rec.message_post(body=message)
+            rec.message_post(body=_('<b>Fuel Voucher Confirmed.</b>'))
             rec.state = 'confirmed'
 
     @api.onchange('travel_id')
@@ -211,7 +165,7 @@ class FleetVehicleLogFuel(models.Model):
                 rec.invoice_id.state == 'paid')
 
     @api.onchange('no_travel')
-    def _onchange_no_tracel(self):
+    def _onchange_no_travel(self):
         if self.no_travel:
             self.travel_id = False
             self.vehicle_id = False

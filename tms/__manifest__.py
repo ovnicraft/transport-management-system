@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 # -*- coding: utf-8 -*-
 # Copyright 2012, Israel Cruz Argil, Argil Consulting
 # Copyright 2016, Jarsa Sistemas, S.A. de C.V.
@@ -5,7 +6,7 @@
 
 {
     "name": "Freight Management",
-    "version": "9.0.0.1.0",
+    "version": "10.0.0.1.0",
     "category": "Transport",
     "author": "Jarsa Sistemas, Argil Consulting",
     "website": "https://www.jarsa.com.mx/page/transport-management-system",
@@ -22,6 +23,8 @@
         'python': [
             'sodapy',
             'num2words',
+            'pyproj',
+            'geojson',
         ],
     },
     "summary": "Management System for Carriers, Trucking and other companies",
@@ -30,6 +33,7 @@
         'security/security.xml',
         'security/ir.model.access.csv',
         'views/tms_view.xml',
+        'data/ir_sequence_data.xml',
         'data/account_journal_data.xml',
         'views/operating_unit_view.xml',
         'views/fleet_vehicle_odometer_view.xml',
@@ -42,6 +46,7 @@
         'views/tms_event_view.xml',
         'views/tms_expense_view.xml',
         'views/tms_expense_line_view.xml',
+        'views/tms_expense_loan_view.xml',
         'views/tms_factor_view.xml',
         'views/tms_place_view.xml',
         'views/tms_route_view.xml',
@@ -54,12 +59,9 @@
         'views/tms_route_tollstation_view.xml',
         'views/fleet_vehicle_engine_view.xml',
         'views/tms_route_note_view.xml',
-        'views/tms_custom_house_view.xml',
-        'views/tms_custom_view.xml',
         'views/res_company_view.xml',
         'data/product_product_data.xml',
-        'data/ir_sequence_data.xml',
-        'data/tms_base_data.xml',
+        'data/operating_unit.xml',
         'data/paper_format.xml',
         'wizards/tms_wizard_payment_view.xml',
         'wizards/tms_wizard_invoice_view.xml',
@@ -68,16 +70,21 @@
         'data/ir_config_parameter.xml',
     ],
     "demo": [
+        'demo/product_product.xml',
+        'demo/fleet_vehicle_odometer.xml',
+        'demo/ir_sequence.xml',
+        'demo/operating_unit.xml',
         'demo/fleet_vehicle_engine.xml',
+        'demo/fleet_vehicle_model_brand.xml',
         'demo/fleet_vehicle.xml',
         'demo/hr_employee.xml',
         'demo/tms_place.xml',
         'demo/tms_route.xml',
         'demo/tms_travel.xml',
+        'demo/fleet_vehicle_log_fuel.xml',
         'demo/tms_advance.xml',
         'demo/tms_route_fuelefficiency.xml',
         'demo/tms_transportable.xml',
-        'demo/tms_travel.xml',
         'demo/tms_unit_kit.xml',
     ],
     "application": True,

@@ -2,9 +2,7 @@
 # Copyright 2012, Israel Cruz Argil, Argil Consulting
 # Copyright 2016, Jarsa Sistemas, S.A. de C.V.
 # License AGPL-3.0 or later (http://www.gnu.org/licenses/agpl.html).
-
-
-from odoo import _, api, fields, exceptions, models
+from odoo import _, api, exceptions, models
 
 
 class TmsWizardInvoice(models.TransientModel):
@@ -138,10 +136,8 @@ class TmsWizardInvoice(models.TransientModel):
         for record in records:
             record.write({'invoice_id': invoice_id.id})
         message = _(
-            '<strong>Invoice of:</strong> %s </br>'
-            '<strong>Created by: </strong>%s </br>'
-            '<strong>Date: </strong>%s') % (
-            ', '.join(record_names), self.env.user.name, fields.Date.today())
+            '<strong>Invoice of:</strong> %s </br>') % (
+            ', '.join(record_names))
         invoice_id.message_post(body=message)
 
         return {
